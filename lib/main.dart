@@ -99,7 +99,7 @@ class Fitness extends StatelessWidget {
     builder: (c, snapshot) {
       final level = snapshot.data ?? 'Beginner';
       final plans = level == 'Experienced' ? experienced : level == 'Intermediate' ? intermediate : beginner;
-      return scroll([
+      return StatefulBuilder(builder: (context, refresh) => scroll([
         title('Home fitness', '$level plan · simple sessions, no gym required.'),
         box(const Text('Start comfortably, rest when needed and stop if you feel pain. Adapt every movement to your ability.')),
         ...plans.asMap().entries.map((entry) => box(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -112,9 +112,32 @@ class Fitness extends StatelessWidget {
             if (c.mounted) ScaffoldMessenger.of(c).showSnackBar(const SnackBar(content: Text('Workout recorded. Nice work!')));
           }, child: const Text('Mark completed')),
         ]))),
+        title('Weight check-in', 'Optional tracking. Your entries stay private on this phone.'),
+        box(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          FilledButton.tonalIcon(onPressed: () async {
+            final value = await ask(c, 'Weight in kilograms');
+            final kg = double.tryParse(value ?? '');
+            if (kg == null || kg < 20 || kg > 500) {
+              if (c.mounted) ScaffoldMessenger.of(c).showSnackBar(const SnackBar(content: Text('Enter a valid weight in kilograms.')));
+              return;
+            }
+            await Store.logWeight(kg);
+            refresh(() {});
+          }, icon: const Icon(Icons.monitor_weight_outlined), label: const Text('Log today’s weight')),
+          FutureBuilder<List<Map<String, Object?>>>(future: Store.weightHistory(), builder: (context, history) {
+            if (!history.hasData) return const LinearProgressIndicator();
+            if (history.data!.isEmpty) return const Padding(padding: EdgeInsets.only(top: 10), child: Text('No weight entries yet. You can skip this completely.'));
+            return Column(children: history.data!.take(7).map((row) => ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text('${(row['weight_kg'] as num).toStringAsFixed(1)} kg'),
+              subtitle: Text(row['day'] as String),
+            )).toList());
+          }),
+        ])),
         title('Recent workouts', 'Your completed sessions stay on this device.'),
         FutureBuilder<List<Map<String,Object?>>>(future: Store.list('workouts'), builder: (c,s) => !s.hasData ? const LinearProgressIndicator() : Column(children: s.data!.take(8).map((e) => ListTile(leading: const Icon(Icons.fitness_center,color:blue),title:Text(e['name'] as String),subtitle:Text(e['day'] as String))).toList())),
-      ]);
+      ]));
     },
   );
 }
@@ -141,13 +164,42 @@ class Food extends StatelessWidget {
         if (preference == 'Eggetarian') return m.startsWith('Vegetarian') || m.contains('Egg');
         return true;
       }).toList();
-      return scroll([
+      return StatefulBuilder(builder: (context, refresh) => scroll([
         title('Food & nutrition', '$preference ideas · flexible, balanced meals.'),
         box(const Text('These are meal ideas, not a medical diet or calorie prescription. Choose portions and foods that suit your needs.')),
         ...options.map((m) => Card(child: ListTile(leading: const Icon(Icons.restaurant,color:mint),title:Text(m),trailing:IconButton(icon:const Icon(Icons.add_circle_outline),onPressed:()async{await Store.log('meals',m);if(c.mounted)ScaffoldMessenger.of(c).showSnackBar(const SnackBar(content:Text('Meal saved.')));})))) ,
+        title('Hydration', 'A simple water check-in. Adjust your target to suit your day.'),
+        FutureBuilder<int>(future: Store.waterToday(), builder: (context, water) => FutureBuilder<String>(
+          future: Store.getSetting('water_goal_ml', fallback: '2000'),
+          builder: (context, goalSnapshot) {
+            if (!water.hasData || !goalSnapshot.hasData) return const LinearProgressIndicator();
+            final goal = int.tryParse(goalSnapshot.data!) ?? 2000;
+            final total = water.data!;
+            return box(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${total} ml / ${goal} ml', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: blue)),
+              const SizedBox(height: 8),
+              LinearProgressIndicator(value: (total / goal).clamp(0.0, 1.0), color: mint),
+              const SizedBox(height: 12),
+              Wrap(spacing: 8, children: [
+                FilledButton.tonal(onPressed: () async { await Store.addWater(250); refresh(() {}); }, child: const Text('+ 250 ml')),
+                FilledButton.tonal(onPressed: () async { await Store.addWater(500); refresh(() {}); }, child: const Text('+ 500 ml')),
+                OutlinedButton(onPressed: () async {
+                  final value = await ask(c, 'Daily water goal in ml');
+                  final parsed = int.tryParse(value ?? '');
+                  if (parsed != null && parsed >= 500 && parsed <= 5000) {
+                    await Store.setSetting('water_goal_ml', parsed.toString());
+                    refresh(() {});
+                  }
+                }, child: const Text('Set goal')),
+              ]),
+              const SizedBox(height: 6),
+              const Text('A general reminder tool, not a medical hydration prescription.', style: TextStyle(color: Colors.white54, fontSize: 11)),
+            ]));
+          },
+        )),
         title('Food log','Your saved meal ideas.'),
         FutureBuilder<List<Map<String,Object?>>>(future:Store.list('meals'),builder:(c,s)=>!s.hasData?const LinearProgressIndicator():Column(children:s.data!.take(8).map((e)=>ListTile(title:Text(e['name'] as String),subtitle:Text(e['day'] as String))).toList())),
-      ]);
+      ]));
     },
   );
 }
