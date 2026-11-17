@@ -47,8 +47,8 @@ class _ProfileState extends State<Profile> {
     super.dispose();
   }
 
-  Future<String?> _ask(String title, {String initial = '', bool secret = false}) async {
-    final controller = TextEditingController(text: initial);
+  Future<String?> _ask(String title, {String? initial, bool? secret}) async {
+    final controller = TextEditingController(text: initial ?? '');
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -56,7 +56,7 @@ class _ProfileState extends State<Profile> {
         content: TextField(
           controller: controller,
           autofocus: true,
-          obscureText: secret,
+          obscureText: secret ?? false,
           decoration: InputDecoration(hintText: secret ? 'At least 10 characters' : 'Enter details'),
         ),
         actions: [
@@ -276,7 +276,7 @@ class _ProfileState extends State<Profile> {
 
 class _GoalsSection extends StatefulWidget {
   const _GoalsSection({required this.ask});
-  final Future<String?> Function(String, {String initial, bool secret}) ask;
+  final Future<String?> Function(String, {String? initial, bool? secret}) ask;
 
   @override
   State<_GoalsSection> createState() => _GoalsSectionState();
