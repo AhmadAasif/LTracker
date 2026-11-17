@@ -3,6 +3,8 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../data/store.dart';
+
 class ReminderService {
   ReminderService._();
   static final ReminderService instance = ReminderService._();
@@ -51,6 +53,13 @@ class ReminderService {
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.time,
     );
+  }
+
+  Future<void> restoreSavedReminder() async {
+    if (await Store.getSetting('reminder_enabled', fallback: 'false') != 'true') return;
+    final hour = int.tryParse(await Store.getSetting('reminder_hour', fallback: '20')) ?? 20;
+    final minute = int.tryParse(await Store.getSetting('reminder_minute', fallback: '0')) ?? 0;
+    await scheduleDaily(hour: hour.clamp(0, 23), minute: minute.clamp(0, 59));
   }
 
   Future<void> cancelDaily() async {
