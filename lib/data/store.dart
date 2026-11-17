@@ -5,12 +5,24 @@ import 'package:sqflite/sqflite.dart';
 
 class Store {
   static Database? _database;
+  static String? _databasePathOverride;
+
+  static Future<void> useDatabasePathForTesting(String path) async {
+    await _database?.close();
+    _database = null;
+    _databasePathOverride = path;
+  }
+
+  static Future<void> close() async {
+    await _database?.close();
+    _database = null;
+  }
 
   static Future<Database> get db async {
     if (_database != null) return _database!;
     final dir = await getDatabasesPath();
     _database = await openDatabase(
-      p.join(dir, 'elora.db'),
+      _databasePathOverride ?? p.join(dir, 'elora.db'),
       version: 4,
       onCreate: (database, version) async {
         await _createCoreTables(database);
