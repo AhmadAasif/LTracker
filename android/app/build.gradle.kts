@@ -8,7 +8,7 @@ plugins {
 
 extensions.configure<ApplicationExtension> {
     namespace = "com.elora.app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
