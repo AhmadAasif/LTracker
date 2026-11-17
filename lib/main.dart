@@ -69,8 +69,83 @@ class Home extends StatelessWidget {
   }
 }
 
-class Habits extends StatefulWidget{const Habits({super.key});@override State<Habits> createState()=>_HabitsState();}
-class _HabitsState extends State<Habits>{void reload()=>setState((){});@override Widget build(BuildContext c)=>scroll([title('Daily routine','Build consistency one small habit at a time.'),FilledButton.icon(onPressed:()async{final v=await ask(c,'Habit name');if(v!=null&&v.isNotEmpty){await Store.addHabit(v);reload();}},icon:const Icon(Icons.add),label:const Text('Add habit')),FutureBuilder<List<Map<String,Object?>>>(future:Store.habits(),builder:(c,s){if(!s.hasData)return const LinearProgressIndicator();if(s.data!.isEmpty)return const Padding(padding:EdgeInsets.all(24),child:Text('Your routine starts with one small habit. Add your first one above.'));return Column(children:s.data!.map((h)=>Card(child:CheckboxListTile(value:h['done']==1&&h['day']==today(),onChanged:(_)async{await Store.toggle(h['id'] as int);reload();},title:Text(h['name'] as String),activeColor:blue,secondary:IconButton(icon:const Icon(Icons.delete_outline),onPressed:()async{await Store.delete(h['id'] as int);reload();})))).toList());})]);}
+class Habits extends StatefulWidget {
+  const Habits({super.key});
+  @override
+  State<Habits> createState() => _HabitsState();
+}
+
+class _HabitsState extends State<Habits> {
+  void reload() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) => scroll([
+    title('Daily routine', 'Build consistency one small habit at a time.'),
+    FilledButton.icon(
+      onPressed: () async {
+        final value = await ask(context, 'Habit name');
+        if (value != null && value.isNotEmpty) {
+          await Store.addHabit(value);
+          reload();
+        }
+      },
+      icon: const Icon(Icons.add),
+      label: const Text('Add habit'),
+    ),
+    FutureBuilder<List<Map<String, Object?>>>(
+      future: Store.habits(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const LinearProgressIndicator();
+        if (snapshot.data!.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(24),
+            child: Text('Your routine starts with one small habit. Add your first one above.'),
+          );
+        }
+        return Column(
+          children: snapshot.data!.map((habit) {
+            final id = habit['id'] as int;
+            final done = habit['done'] == 1 && habit['day'] == today();
+            return Card(
+              child: Column(children: [
+                CheckboxListTile(
+                  value: done,
+                  onChanged: (_) async {
+                    await Store.toggle(id);
+                    reload();
+                  },
+                  title: Text(habit['name'] as String),
+                  activeColor: blue,
+                  secondary: IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: () async {
+                      await Store.delete(id);
+                      reload();
+                    },
+                  ),
+                ),
+                FutureBuilder<int>(
+                  future: Store.habitStreak(id),
+                  builder: (context, streak) => Align(
+                    alignment: Alignment.centerLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 58, bottom: 12),
+                      child: Text(
+                        '${streak.data ?? 0} day streak',
+                        style: const TextStyle(color: mint, fontSize: 12),
+                      ),
+                    ),
+                  ),
+                ),
+              ]),
+            );
+          }).toList(),
+        );
+      },
+    ),
+  ]);
+}
+
 class Fitness extends StatelessWidget {
   const Fitness({super.key});
 
@@ -204,7 +279,85 @@ class Food extends StatelessWidget {
   );
 }
 
-class Money extends StatefulWidget{const Money({super.key});@override State<Money> createState()=>_MoneyState();}
-class _MoneyState extends State<Money>{void refresh()=>setState((){});@override Widget build(BuildContext c)=>scroll([title('Your money','Awareness first. Better choices follow.'),Wrap(spacing:8,children:[FilledButton.icon(onPressed:()async{final desc=await ask(c,'Expense description');if(desc==null||desc.isEmpty)return;final amt=await ask(c,'Amount in rupees');final n=double.tryParse(amt??'');if(n==null||n<=0)return;final cat=await ask(c,'Category')??'Other';await Store.expense(desc,n,cat);refresh();},icon:const Icon(Icons.add),label:const Text('Add expense')),OutlinedButton.icon(onPressed:()async{final v=await ask(c,'Monthly budget in rupees');final n=double.tryParse(v??'');if(n!=null&&n>=0){await Store.budget(n);refresh();}},icon:const Icon(Icons.savings),label:const Text('Set budget'))]),FutureBuilder<Map<String,Object>>(future:Store.finance(),builder:(c,s){if(!s.hasData)return const LinearProgressIndicator();final d=s.data!;final b=d['budget'] as double;final spent=d['spent'] as double;return Column(children:[box(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Spent this month',style:TextStyle(color:Colors.white60)),Text(rupee(spent),style:const TextStyle(fontSize:30,fontWeight:FontWeight.bold)),Text(b>0?'Budget '+rupee(b)+' · Remaining '+rupee((b-spent).clamp(0,double.infinity)):'No monthly budget set'),const SizedBox(height:10),LinearProgressIndicator(value:b<=0?0:(spent/b).clamp(0,1),color:spent>b?Colors.orange:mint)])),title('Recent expenses','Your records, not bank-linked transactions.'),...(d['items'] as List<Map<String,Object?>>).map((e)=>ListTile(leading:const Icon(Icons.receipt_long,color:blue),title:Text(e['name'] as String),subtitle:Text((e['category'] as String)+' · '+(e['day'] as String)),trailing:Text(rupee(e['amount'] as num))))]);})]);}
+class Money extends StatefulWidget {
+  const Money({super.key});
+  @override
+  State<Money> createState() => _MoneyState();
+}
+
+class _MoneyState extends State<Money> {
+  void refresh() => setState(() {});
+
+  Future<void> _addExpense() async {
+    final description = await ask(context, 'Expense description');
+    if (description == null || description.isEmpty || !mounted) return;
+    final amountText = await ask(context, 'Amount in rupees');
+    final amount = double.tryParse(amountText ?? '');
+    if (amount == null || amount <= 0 || !amount.isFinite || !mounted) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid positive amount.')));
+      return;
+    }
+    final category = await ask(context, 'Category') ?? 'Other';
+    await Store.expense(description, amount, category);
+    refresh();
+  }
+
+  Future<void> _setBudget() async {
+    final value = await ask(context, 'Monthly budget in rupees');
+    final amount = double.tryParse(value ?? '');
+    if (amount != null && amount >= 0 && amount.isFinite) {
+      await Store.budget(amount);
+      refresh();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => scroll([
+    title('Your money', 'Awareness first. Better choices follow.'),
+    Wrap(spacing: 8, children: [
+      FilledButton.icon(onPressed: _addExpense, icon: const Icon(Icons.add), label: const Text('Add expense')),
+      OutlinedButton.icon(onPressed: _setBudget, icon: const Icon(Icons.savings), label: const Text('Set budget')),
+    ]),
+    FutureBuilder<Map<String, Object>>(
+      future: Store.finance(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const LinearProgressIndicator();
+        final data = snapshot.data!;
+        final budget = data['budget'] as double;
+        final spent = data['spent'] as double;
+        final remaining = (budget - spent).clamp(0, double.infinity);
+        final items = data['items'] as List<Map<String, Object?>>;
+        return Column(children: [
+          box(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Spent this month', style: TextStyle(color: Colors.white60)),
+            Text(rupee(spent), style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold)),
+            Text(budget > 0 ? 'Budget ${rupee(budget)} · Remaining ${rupee(remaining)}' : 'No monthly budget set'),
+            const SizedBox(height: 10),
+            LinearProgressIndicator(value: budget <= 0 ? 0 : (spent / budget).clamp(0.0, 1.0), color: spent > budget ? Colors.orange : mint),
+          ])),
+          title('Recent expenses', 'Your records, not bank-linked transactions.'),
+          if (items.isEmpty) const Padding(padding: EdgeInsets.all(20), child: Text('No expenses recorded this month.')),
+          ...items.map((expense) => Card(child: ListTile(
+            leading: const Icon(Icons.receipt_long, color: blue),
+            title: Text(expense['name'] as String),
+            subtitle: Text('${expense['category']} · ${expense['day']}'),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(rupee(expense['amount'] as num)),
+              IconButton(
+                tooltip: 'Delete expense',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () async {
+                  await Store.deleteExpense(expense['id'] as int);
+                  refresh();
+                },
+              ),
+            ]),
+          ))),
+        ]);
+      },
+    ),
+  ]);
+}
+
 class EloraChat extends StatefulWidget{const EloraChat({super.key});@override State<EloraChat> createState()=>_ChatState();}
 class _ChatState extends State<EloraChat>{final ctl=TextEditingController();final msgs=['Hi, I’m ELORA. I work offline and can help with your habits, spending, fitness and meals.'];Future<String> answer(String q)async{final s=await Store.finance();final x=q.toLowerCase();if(x.contains('budget')||x.contains('spend')||x.contains('money'))return 'You recorded '+rupee(s['spent'] as num)+' this month. Your budget is '+((s['budget'] as double)>0?rupee(s['budget'] as double):'not set')+'. I will not change your money settings without your approval.';if(x.contains('habit')||x.contains('routine')){final h=await Store.habits();final n=h.where((e)=>e['done']==1&&e['day']==today()).length;return 'You completed '+n.toString()+' of '+h.length.toString()+' habits today. Choose one small next step.';}if(x.contains('workout')||x.contains('fitness'))return 'Try a short, comfortable home session with chair squats, wall push-ups and gentle stretching. Stop if you feel pain.';if(x.contains('food')||x.contains('meal'))return 'Build a balanced plate with vegetables, a protein such as dal, beans, eggs, paneer, fish or chicken, and rice or roti.';return 'I’m your offline companion. I use built-in guidance rather than a cloud AI model. Ask me about budget, habits, fitness or meals. Your personal records stay on this device.';}void send()async{final q=ctl.text.trim();if(q.isEmpty)return;ctl.clear();setState(()=>msgs.add('You: '+q));final a=await answer(q);if(mounted)setState(()=>msgs.add('ELORA: '+a));}@override void dispose(){ctl.dispose();super.dispose();}@override Widget build(BuildContext c)=>Column(children:[Expanded(child:ListView(padding:const EdgeInsets.all(16),children:[title('Talk with ELORA','A helpful companion, even without internet.'),...msgs.map((m)=>Align(alignment:m.startsWith('You:')?Alignment.centerRight:Alignment.centerLeft,child:Container(margin:const EdgeInsets.only(bottom:10),padding:const EdgeInsets.all(14),constraints:const BoxConstraints(maxWidth:320),decoration:BoxDecoration(color:m.startsWith('You:')?const Color(0xFF17415B):card,borderRadius:BorderRadius.circular(16)),child:Text(m))))])),SafeArea(top:false,child:Padding(padding:const EdgeInsets.all(10),child:Row(children:[Expanded(child:TextField(controller:ctl,onSubmitted:(_)=>send(),decoration:const InputDecoration(hintText:'Ask ELORA...'))),IconButton.filled(onPressed:send,icon:const Icon(Icons.send))]))) ]);}
