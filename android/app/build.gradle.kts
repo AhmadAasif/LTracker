@@ -14,9 +14,11 @@ extensions.configure<ApplicationExtension> {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
+        multiDexEnabled = true
         applicationId = "com.elora.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
@@ -29,6 +31,10 @@ kotlin {
     compilerOptions {
         jvmTarget = JvmTarget.JVM_17
     }
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 flutter {
