@@ -19,7 +19,7 @@ class ReminderService {
     const settings = InitializationSettings(
       android: AndroidInitializationSettings('@drawable/elora_notification'),
     );
-    await _plugin.initialize(settings);
+    await _plugin.initialize(settings: settings);
     _ready = true;
   }
 
@@ -45,11 +45,11 @@ class ReminderService {
       ),
     );
     await _plugin.zonedSchedule(
-      4101,
-      'A little check-in from ELORA 🌿',
-      'Take a moment for your habits, wellbeing and plans today.',
-      scheduled,
-      details,
+      id: 4101,
+      title: 'A little check-in from ELORA 🌿',
+      body: 'Take a moment for your habits, wellbeing and plans today.',
+      scheduledDate: scheduled,
+      notificationDetails: details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.time,
     );
@@ -64,6 +64,6 @@ class ReminderService {
 
   Future<void> cancelDaily() async {
     await initialize();
-    await _plugin.cancel(4101);
+    await _plugin.cancel(id: 4101);
   }
 }
