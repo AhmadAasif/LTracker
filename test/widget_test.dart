@@ -1,5 +1,4 @@
 import 'package:elora/main.dart';
-import 'package:elora/data/store.dart';
 import 'package:flutter/material.dart' show Scrollable;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
