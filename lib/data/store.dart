@@ -11,13 +11,20 @@ class Store {
     final dir = await getDatabasesPath();
     _database = await openDatabase(
       p.join(dir, 'elora.db'),
-      version: 2,
+      version: 3,
       onCreate: (database, version) async {
         await _createCoreTables(database);
         await _createGoalsTable(database);
+        await _createHabitLogsTable(database);
       },
       onUpgrade: (database, oldVersion, newVersion) async {
         if (oldVersion < 2) await _createGoalsTable(database);
+        if (oldVersion < 3) {
+          await _createHabitLogsTable(database);
+          await database.execute(
+            'INSERT OR IGNORE INTO habit_logs(habit_id,day) SELECT id,day FROM habits WHERE done=1',
+          );
+        }
       },
     );
     return _database!;
@@ -35,11 +42,13 @@ class Store {
     await d.execute('CREATE TABLE goals(id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,target TEXT NOT NULL,progress INTEGER NOT NULL DEFAULT 0,created TEXT NOT NULL)');
   }
 
-  static String get day {
-    final d = DateTime.now();
-    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  static Future<void> _createHabitLogsTable(DatabaseExecutor d) async {
+    await d.execute('CREATE TABLE habit_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,habit_id INTEGER NOT NULL,day TEXT NOT NULL,UNIQUE(habit_id,day))');
   }
 
+  static String dateKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  static String get day => dateKey(DateTime.now());
   static String month(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}';
 
   static Future<List<Map<String, Object?>>> habits() async =>
@@ -56,12 +65,22 @@ class Store {
     final rows = await database.query('habits', where: 'id=?', whereArgs: [id], limit: 1);
     if (rows.isEmpty) return;
     final habit = rows.first;
-    final value = habit['done'] == 1 && habit['day'] == day ? 0 : 1;
-    await database.update('habits', {'done': value, 'day': day}, where: 'id=?', whereArgs: [id]);
+    final currentlyDone = habit['done'] == 1 && habit['day'] == day;
+    if (currentlyDone) {
+      await database.delete('habit_logs', where: 'habit_id=? AND day=?', whereArgs: [id, day]);
+      await database.update('habits', {'done': 0, 'day': day}, where: 'id=?', whereArgs: [id]);
+    } else {
+      await database.insert('habit_logs', {'habit_id': id, 'day': day}, conflictAlgorithm: ConflictAlgorithm.ignore);
+      await database.update('habits', {'done': 1, 'day': day}, where: 'id=?', whereArgs: [id]);
+    }
   }
 
   static Future<void> delete(int id) async {
-    await (await db).delete('habits', where: 'id=?', whereArgs: [id]);
+    final database = await db;
+    await database.transaction((txn) async {
+      await txn.delete('habit_logs', where: 'habit_id=?', whereArgs: [id]);
+      await txn.delete('habits', where: 'id=?', whereArgs: [id]);
+    });
   }
 
   static Future<void> log(String table, String name) async {
@@ -92,31 +111,22 @@ class Store {
 
   static Future<void> budget(double amount) async {
     if (amount < 0 || !amount.isFinite) throw ArgumentError('Invalid budget');
-    await (await db).insert(
-      'settings',
-      {'key': 'budget', 'value': amount.toString()},
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await setSetting('budget', amount.toString());
   }
 
-  static Future<double> getBudget() async {
-    final rows = await (await db).query('settings', where: 'key=?', whereArgs: ['budget'], limit: 1);
-    return rows.isEmpty ? 0 : double.tryParse(rows.first['value'] as String) ?? 0;
+  static Future<double> getBudget() async => double.tryParse(await getSetting('budget', fallback: '0')) ?? 0;
+
+  static Future<void> setSetting(String key, String value) async {
+    await (await db).insert('settings', {'key': key, 'value': value}, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  static Future<String> profileName() async {
-    final rows = await (await db).query('settings', where: 'key=?', whereArgs: ['profile_name'], limit: 1);
-    return rows.isEmpty ? '' : rows.first['value'] as String;
+  static Future<String> getSetting(String key, {String fallback = ''}) async {
+    final rows = await (await db).query('settings', where: 'key=?', whereArgs: [key], limit: 1);
+    return rows.isEmpty ? fallback : rows.first['value'] as String;
   }
 
-  static Future<void> saveProfileName(String name) async {
-    final value = name.trim();
-    await (await db).insert(
-      'settings',
-      {'key': 'profile_name', 'value': value},
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
+  static Future<String> profileName() => getSetting('profile_name');
+  static Future<void> saveProfileName(String name) => setSetting('profile_name', name.trim());
 
   static Future<List<Map<String, Object?>>> goals() async =>
       (await (await db).query('goals', orderBy: 'id DESC'));
@@ -124,25 +134,50 @@ class Store {
   static Future<void> addGoal(String title, String target) async {
     final name = title.trim();
     if (name.isEmpty) return;
-    await (await db).insert('goals', {
-      'title': name,
-      'target': target.trim(),
-      'progress': 0,
-      'created': day,
-    });
+    await (await db).insert('goals', {'title': name, 'target': target.trim(), 'progress': 0, 'created': day});
   }
 
   static Future<void> updateGoalProgress(int id, int progress) async {
-    await (await db).update(
-      'goals',
-      {'progress': progress.clamp(0, 100)},
-      where: 'id=?',
-      whereArgs: [id],
-    );
+    await (await db).update('goals', {'progress': progress.clamp(0, 100)}, where: 'id=?', whereArgs: [id]);
   }
 
   static Future<void> deleteGoal(int id) async {
     await (await db).delete('goals', where: 'id=?', whereArgs: [id]);
+  }
+
+  static Future<int> habitStreak(int habitId) async {
+    final database = await db;
+    final rows = await database.query('habit_logs', columns: ['day'], where: 'habit_id=?', whereArgs: [habitId], orderBy: 'day DESC');
+    final dates = rows.map((r) => r['day'] as String).toSet();
+    var cursor = DateTime.now();
+    if (!dates.contains(dateKey(cursor))) cursor = cursor.subtract(const Duration(days: 1));
+    var streak = 0;
+    while (dates.contains(dateKey(cursor))) {
+      streak++;
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+    return streak;
+  }
+
+  static Future<Map<String, Object>> progressStats({int days = 7}) async {
+    final database = await db;
+    final labels = <String>[];
+    final habitCounts = <int>[];
+    final expenseTotals = <double>[];
+    final workoutCounts = <int>[];
+    final todayDate = DateTime.now();
+    for (var i = days - 1; i >= 0; i--) {
+      final date = DateTime(todayDate.year, todayDate.month, todayDate.day).subtract(Duration(days: i));
+      final key = dateKey(date);
+      labels.add('${date.day}/${date.month}');
+      habitCounts.add(Sqflite.firstIntValue(await database.rawQuery('SELECT COUNT(*) FROM habit_logs WHERE day=?', [key])) ?? 0);
+      final expenses = await database.rawQuery('SELECT COALESCE(SUM(amount),0) AS total FROM expenses WHERE day=?', [key]);
+      expenseTotals.add((expenses.first['total'] as num).toDouble());
+      workoutCounts.add(Sqflite.firstIntValue(await database.rawQuery('SELECT COUNT(*) FROM workouts WHERE day=?', [key])) ?? 0);
+    }
+    final goalRows = await goals();
+    final goalAverage = goalRows.isEmpty ? 0.0 : goalRows.fold<int>(0, (sum, g) => sum + (g['progress'] as int)) / goalRows.length;
+    return {'labels': labels, 'habits': habitCounts, 'expenses': expenseTotals, 'workouts': workoutCounts, 'goalAverage': goalAverage};
   }
 
   static Future<Map<String, Object>> finance() async {
@@ -156,14 +191,10 @@ class Store {
     final allHabits = await habits();
     final financeData = await finance();
     final done = allHabits.where((e) => e['done'] == 1 && e['day'] == day).length;
-    return {
-      'done': done,
-      'spent': financeData['spent'] as double,
-      'budget': financeData['budget'] as double,
-    };
+    return {'done': done, 'totalHabits': allHabits.length, 'spent': financeData['spent'] as double, 'budget': financeData['budget'] as double};
   }
 
-  static const _backupTables = ['habits', 'expenses', 'settings', 'workouts', 'meals', 'goals'];
+  static const _backupTables = ['habits', 'habit_logs', 'expenses', 'settings', 'workouts', 'meals', 'goals'];
 
   static Future<String> createBackup() async {
     final database = await db;
@@ -173,7 +204,7 @@ class Store {
     }
     return const JsonEncoder.withIndent('  ').convert({
       'format': 'elora-backup',
-      'version': 1,
+      'version': 2,
       'createdAt': DateTime.now().toUtc().toIso8601String(),
       'data': data,
     });
@@ -181,26 +212,37 @@ class Store {
 
   static Future<void> restoreBackup(String raw) async {
     final decoded = jsonDecode(raw);
-    if (decoded is! Map || decoded['format'] != 'elora-backup' || decoded['version'] != 1) {
+    if (decoded is! Map || decoded['format'] != 'elora-backup' || ![1, 2].contains(decoded['version'])) {
       throw const FormatException('This is not a supported ELORA backup.');
     }
     final data = decoded['data'];
     if (data is! Map) throw const FormatException('Backup data is missing.');
-    for (final table in _backupTables) {
+    for (final table in ['habits', 'expenses', 'settings', 'workouts', 'meals', 'goals']) {
       if (data[table] is! List) throw FormatException('Backup is missing $table data.');
-      for (final row in data[table] as List) {
-        if (row is! Map) throw FormatException('Invalid row in $table.');
-      }
+    }
+    if (decoded['version'] == 2 && data['habit_logs'] is! List) {
+      throw const FormatException('Backup habit history is missing.');
+    }
+    for (final value in data.values) {
+      if (value is List && value.any((row) => row is! Map)) throw const FormatException('Backup contains an invalid data row.');
     }
 
     final database = await db;
     await database.transaction((txn) async {
-      for (final table in _backupTables) {
+      for (final table in _backupTables.reversed) {
         await txn.delete(table);
-        for (final rawRow in data[table] as List) {
-          final row = Map<String, Object?>.from(rawRow as Map);
-          await txn.insert(table, row, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+      for (final table in _backupTables) {
+        final rows = data[table];
+        if (rows is List) {
+          for (final rawRow in rows) {
+            final row = Map<String, Object?>.from(rawRow as Map);
+            await txn.insert(table, row, conflictAlgorithm: ConflictAlgorithm.replace);
+          }
         }
+      }
+      if (decoded['version'] == 1) {
+        await txn.execute('INSERT OR IGNORE INTO habit_logs(habit_id,day) SELECT id,day FROM habits WHERE done=1');
       }
     });
   }
