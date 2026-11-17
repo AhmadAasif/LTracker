@@ -10,10 +10,23 @@ void main() {
 
   testWidgets('ELORA dashboard renders', (tester) async {
     await tester.pumpWidget(const EloraApp());
-    await tester.pumpAndSettle();
+    // The dashboard contains an indeterminate loading indicator while SQLite
+    // opens. pumpAndSettle would wait forever for that intentional animation.
+    await tester.pump(const Duration(milliseconds: 150));
 
     expect(find.text('ELORA'), findsWidgets);
     expect(find.text('Your day, your pace.'), findsOneWidget);
     expect(find.text('Today at a glance'), findsOneWidget);
+  });
+
+  testWidgets('Profile and goal controls are reachable', (tester) async {
+    await tester.pumpWidget(const EloraApp());
+    await tester.pump(const Duration(milliseconds: 150));
+    await tester.tap(find.text('You'));
+    await tester.pump(const Duration(milliseconds: 150));
+
+    expect(find.text('Your space'), findsOneWidget);
+    expect(find.text('Personal goals'), findsOneWidget);
+    expect(find.text('Your data'), findsOneWidget);
   });
 }
