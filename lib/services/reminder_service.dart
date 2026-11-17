@@ -17,7 +17,7 @@ class ReminderService {
     final zoneInfo = await FlutterTimezone.getLocalTimezone();
     tz.setLocalLocation(tz.getLocation(zoneInfo.identifier));
     const settings = InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      android: AndroidInitializationSettings('@drawable/elora_notification'),
     );
     await _plugin.initialize(settings);
     _ready = true;
@@ -41,7 +41,7 @@ class ReminderService {
         channelDescription: 'A gentle reminder to check in with your routine.',
         importance: Importance.defaultImportance,
         priority: Priority.defaultPriority,
-        icon: '@mipmap/ic_launcher',
+        icon: 'elora_notification',
       ),
     );
     await _plugin.zonedSchedule(
