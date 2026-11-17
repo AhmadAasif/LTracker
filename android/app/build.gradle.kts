@@ -17,6 +17,16 @@ extensions.configure<ApplicationExtension> {
         isCoreLibraryDesugaringEnabled = true
     }
 
+    buildTypes {
+        getByName("release") {
+            // AGP 9.3.1 currently resolves its generated default R8 file to a
+            // missing intermediate path in this Flutter build. Keep the APK
+            // unminified; app size is acceptable and runtime behavior is safer.
+            isMinifyEnabled = false
+            isShrinkResources = false
+        }
+    }
+
     defaultConfig {
         multiDexEnabled = true
         applicationId = "com.elora.app"
