@@ -30,11 +30,10 @@ class SecureBackup {
       'mac': base64Encode(box.mac.bytes),
     });
     final bytes = Uint8List.fromList(utf8.encode(envelope));
-    final path = await FilePicker.platform.saveFile(
+    final path = await FilePicker.saveFile(
       dialogTitle: 'Save encrypted ELORA backup',
-      fileName: 'elora-backup-${DateTime.now().toIso8601String().substring(0, 10)}.elora',
-      type: FileType.custom,
-      allowedExtensions: ['elora'],
+      fileName: 'elora-backup-\${DateTime.now().toIso8601String().substring(0, 10)}.elora',
+      mimeType: 'application/vnd.elora.backup',
       bytes: bytes,
     );
     if (path == null) throw const BackupCancelled();
@@ -42,15 +41,12 @@ class SecureBackup {
 
   static Future<void> importFromFile(String password) async {
     _validatePassword(password);
-    final files = await FilePicker.platform.pickFiles(
+    final file = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['elora'],
-      withData: true,
-      allowMultiple: false,
     );
-    if (files == null || files.files.isEmpty) throw const BackupCancelled();
-    final bytes = files.files.single.bytes;
-    if (bytes == null) throw const FormatException('Could not read the selected backup file.');
+    if (file == null) throw const BackupCancelled();
+    final bytes = await file.readAsBytes();
     final decoded = jsonDecode(utf8.decode(bytes));
     if (decoded is! Map || decoded['format'] != 'elora-encrypted-backup' || decoded['version'] != 1) {
       throw const FormatException('This is not a supported encrypted ELORA backup.');
