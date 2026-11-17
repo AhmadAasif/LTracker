@@ -41,11 +41,15 @@ void main() {
     final counts = stats['habits'] as List<int>;
     expect(counts.last, greaterThanOrEqualTo(1));
 
+    await Store.addWater(250);
+    await Store.logWeight(70.2);
     final backup = await Store.createBackup();
     await Store.delete(id);
     expect((await Store.habits()).any((row) => row['name'] == habitName), isFalse);
     await Store.restoreBackup(backup);
     expect((await Store.habits()).any((row) => row['name'] == habitName), isTrue);
     expect(await Store.habitStreak(id), 1);
+    expect(await Store.waterToday(), 250);
+    expect((await Store.weightHistory()).first['weight_kg'], 70.2);
   });
 }
