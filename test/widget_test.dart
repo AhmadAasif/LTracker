@@ -27,7 +27,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 150));
 
     expect(find.text('Your space'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Personal goals'), 350, scrollable: find.byType(Scrollable).last);
     expect(find.text('Personal goals'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Your data'), 350, scrollable: find.byType(Scrollable).last);
     expect(find.text('Your data'), findsOneWidget);
   });
   test('habit completion history and backup restore work', () async {
@@ -43,6 +45,7 @@ void main() {
 
     await Store.addWater(250);
     await Store.logWeight(70.2);
+    // Exercise the current schema, including optional wellbeing logs.
     final backup = await Store.createBackup();
     await Store.delete(id);
     expect((await Store.habits()).any((row) => row['name'] == habitName), isFalse);
