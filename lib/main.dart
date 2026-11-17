@@ -13,7 +13,64 @@ Widget box(Widget w)=>Card(child:Padding(padding:const EdgeInsets.all(16),child:
 String today(){final d=DateTime.now();return d.year.toString()+'-'+d.month.toString().padLeft(2,'0')+'-'+d.day.toString().padLeft(2,'0');}
 String rupee(num n)=>'₹'+n.toStringAsFixed(0);
 Future<String?> ask(BuildContext c,String label)=>showDialog<String>(context:c,builder:(x){final ctl=TextEditingController();return AlertDialog(backgroundColor:card,title:Text(label),content:TextField(controller:ctl,decoration:InputDecoration(hintText:label)),actions:[TextButton(onPressed:()=>Navigator.pop(x),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(x,ctl.text.trim()),child:const Text('Save'))]);});
-class Home extends StatelessWidget{const Home({super.key});@override Widget build(BuildContext c)=>scroll([title('Your day, your pace.','Your Personal Life Intelligence.'),box(const Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Hello! 👋',style:TextStyle(fontSize:24,fontWeight:FontWeight.bold)),SizedBox(height:8),Text('Small steps count. Let’s make today a little better.'),SizedBox(height:12),Text('I’m here whenever you need a hand.',style:TextStyle(color:blue))])),title('Today at a glance','Your personal progress, stored on this device.'),FutureBuilder<Map<String,Object>>(future:Store.summary(),builder:(c,s){if(!s.hasData)return const LinearProgressIndicator();final d=s.data!;return Column(children:[box(Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[const Text('Habits completed'),Text(d['done'].toString(),style:const TextStyle(fontSize:22,fontWeight:FontWeight.bold,color:mint))])),box(Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[const Text('Spent this month'),Text(rupee(d['spent'] as num),style:const TextStyle(fontSize:22,fontWeight:FontWeight.bold,color:blue))])),box(Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[const Text('Monthly budget left'),Text((d['budget'] as double)>0?rupee(((d['budget'] as double)-(d['spent'] as num)).clamp(0,double.infinity)):'Not set',style:const TextStyle(fontWeight:FontWeight.bold))]))];}),title('A gentle reminder','You do not need a perfect day. Just a better next step.')]);}
+class Home extends StatelessWidget {
+  const Home({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return scroll([
+      title('Your day, your pace.', 'Your Personal Life Intelligence.'),
+      box(const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Hello! 👋', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          SizedBox(height: 8),
+          Text('Small steps count. Let’s make today a little better.'),
+          SizedBox(height: 12),
+          Text('I’m here whenever you need a hand.', style: TextStyle(color: blue)),
+        ],
+      )),
+      title('Today at a glance', 'Your personal progress, stored on this device.'),
+      FutureBuilder<Map<String, Object>>(
+        future: Store.summary(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const LinearProgressIndicator();
+          final data = snapshot.data!;
+          final budget = data['budget'] as double;
+          final spent = data['spent'] as double;
+          final remaining = (budget - spent).clamp(0, double.infinity);
+          return Column(
+            children: [
+              box(Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Habits completed'),
+                  Text(data['done'].toString(), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: mint)),
+                ],
+              )),
+              box(Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Spent this month'),
+                  Text(rupee(spent), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: blue)),
+                ],
+              )),
+              box(Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Monthly budget left'),
+                  Text(budget > 0 ? rupee(remaining) : 'Not set', style: const TextStyle(fontWeight: FontWeight.bold)),
+                ],
+              )),
+            ],
+          );
+        },
+      ),
+      title('A gentle reminder', 'You do not need a perfect day. Just a better next step.'),
+    ]);
+  }
+}
+
 class Habits extends StatefulWidget{const Habits({super.key});@override State<Habits> createState()=>_HabitsState();}
 class _HabitsState extends State<Habits>{void reload()=>setState((){});@override Widget build(BuildContext c)=>scroll([title('Daily routine','Build consistency one small habit at a time.'),FilledButton.icon(onPressed:()async{final v=await ask(c,'Habit name');if(v!=null&&v.isNotEmpty){await Store.addHabit(v);reload();}},icon:const Icon(Icons.add),label:const Text('Add habit')),FutureBuilder<List<Map<String,Object?>>>(future:Store.habits(),builder:(c,s){if(!s.hasData)return const LinearProgressIndicator();if(s.data!.isEmpty)return const Padding(padding:EdgeInsets.all(24),child:Text('Your routine starts with one small habit. Add your first one above.'));return Column(children:s.data!.map((h)=>Card(child:CheckboxListTile(value:h['done']==1&&h['day']==today(),onChanged:(_)async{await Store.toggle(h['id'] as int);reload();},title:Text(h['name'] as String),activeColor:blue,secondary:IconButton(icon:const Icon(Icons.delete_outline),onPressed:()async{await Store.delete(h['id'] as int);reload();})))).toList());})]);}
 class Fitness extends StatelessWidget{const Fitness({super.key});static const plans=['Beginner full body: 2 rounds of 10 chair squats, 8 wall push-ups, 10 glute bridges and a 20-second comfortable plank.','Quick movement: 10-minute walk or march in place, followed by gentle stretches.','Upper body: wall push-ups, arm circles and shoulder mobility.','Lower body: chair squats, glute bridges and supported reverse lunges.'];@override Widget build(BuildContext c)=>scroll([title('Home fitness','Simple sessions. No gym required.'),box(const Text('Start comfortably, rest when needed and stop if you feel pain. Adapt every movement to your ability.')), ...plans.map((p)=>box(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(p),const SizedBox(height:10),FilledButton.tonal(onPressed:()async{await Store.log('workouts',p.split(':').first);if(c.mounted)ScaffoldMessenger.of(c).showSnackBar(const SnackBar(content:Text('Workout recorded. Nice work!')));},child:const Text('Mark completed'))]))),title('Recent workouts','Your completed sessions stay on this device.'),FutureBuilder<List<Map<String,Object?>>>(future:Store.list('workouts'),builder:(c,s)=>!s.hasData?const LinearProgressIndicator():Column(children:s.data!.take(6).map((e)=>ListTile(leading:const Icon(Icons.fitness_center,color:blue),title:Text(e['name'] as String),subtitle:Text(e['day'] as String))).toList()))]);}
