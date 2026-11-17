@@ -9,6 +9,8 @@ ELORA is an Android-first, offline-first personal life companion built with Flut
 - Vegetarian and non-vegetarian meal ideas with a local food log.
 - Expense tracking, categories, monthly budget, and remaining-budget overview.
 - Offline companion responses for habits, fitness, meals, and spending.
+- Personal profile and editable goals with progress tracking.
+- Local JSON backup and restore with validation and explicit replacement confirmation.
 - Dark navy / ocean-blue interface with six sections.
 
 ## Run locally
@@ -26,7 +28,8 @@ The APK is an unsigned release build suitable for direct testing. A production P
 ## Privacy and limitations
 - Personal records are stored locally in the app's SQLite database.
 - ELORA's current assistant is rule-based and works offline; it is not a cloud LLM.
-- Data can be lost if the app is uninstalled because backup/restore is not implemented yet.
+- Data can be lost if the app is uninstalled unless you create and store a backup. Backups copied to the clipboard are not encrypted; keep them private.
+- Backup and restore currently use copy/paste JSON rather than a system file picker.
 - No bank account is connected and no financial action is automated.
 - Workout and meal suggestions are general wellness ideas, not medical advice.
 

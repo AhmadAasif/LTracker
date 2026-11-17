@@ -8,9 +8,11 @@
 - [x] Offline rule-based companion responses.
 - [x] Dark mobile navigation and home dashboard.
 - [x] GitHub Actions analysis, widget tests, and release APK artifact pipeline.
+- [x] Personal profile and editable goal tracking.
+- [x] Validated local JSON backup/restore with transactional replacement.
 
 ## Remaining before calling ELORA production-ready
-1. Encrypted backup/export/import with a clear restore confirmation.
+1. Add encrypted file-based backup/export/import (current copy/paste JSON backup is not encrypted).
 2. Profile, goals, and editable preferences.
 3. Local reminders and Android notification permission/reboot handling.
 4. Date-filtered progress charts and habit streaks.
