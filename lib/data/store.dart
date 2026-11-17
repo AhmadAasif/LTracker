@@ -20,9 +20,9 @@ class Store {
 
   static Future<Database> get db async {
     if (_database != null) return _database!;
-    final dir = await getDatabasesPath();
+    final path = _databasePathOverride ?? p.join(await getDatabasesPath(), 'elora.db');
     _database = await openDatabase(
-      _databasePathOverride ?? p.join(dir, 'elora.db'),
+      path,
       version: 4,
       onCreate: (database, version) async {
         await _createCoreTables(database);
