@@ -14,8 +14,8 @@ class ReminderService {
   Future<void> initialize() async {
     if (_ready) return;
     tzdata.initializeTimeZones();
-    final zoneName = await FlutterTimezone.getLocalTimezone();
-    tz.setLocalLocation(tz.getLocation(zoneName));
+    final zoneInfo = await FlutterTimezone.getLocalTimezone();
+    tz.setLocalLocation(tz.getLocation(zoneInfo.identifier));
     const settings = InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
     );
