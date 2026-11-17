@@ -24,6 +24,9 @@ extensions.configure<ApplicationExtension> {
             // unminified; app size is acceptable and runtime behavior is safer.
             isMinifyEnabled = false
             isShrinkResources = false
+            // Use the generated debug key for installable sideload/test builds.
+            // Replace with a private release keystore before Play Store distribution.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
