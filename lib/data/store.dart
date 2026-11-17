@@ -11,20 +11,20 @@ class Store {
     final dir = await getDatabasesPath();
     _database = await openDatabase(
       p.join(dir, 'elora.db'),
-      version: 3,
+      version: 4,
       onCreate: (database, version) async {
         await _createCoreTables(database);
         await _createGoalsTable(database);
         await _createHabitLogsTable(database);
+        await _createWellbeingTables(database);
       },
       onUpgrade: (database, oldVersion, newVersion) async {
         if (oldVersion < 2) await _createGoalsTable(database);
         if (oldVersion < 3) {
           await _createHabitLogsTable(database);
-          await database.execute(
-            'INSERT OR IGNORE INTO habit_logs(habit_id,day) SELECT id,day FROM habits WHERE done=1',
-          );
+          await database.execute('INSERT OR IGNORE INTO habit_logs(habit_id,day) SELECT id,day FROM habits WHERE done=1');
         }
+        if (oldVersion < 4) await _createWellbeingTables(database);
       },
     );
     return _database!;
@@ -44,6 +44,11 @@ class Store {
 
   static Future<void> _createHabitLogsTable(DatabaseExecutor d) async {
     await d.execute('CREATE TABLE habit_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,habit_id INTEGER NOT NULL,day TEXT NOT NULL,UNIQUE(habit_id,day))');
+  }
+
+  static Future<void> _createWellbeingTables(DatabaseExecutor d) async {
+    await d.execute('CREATE TABLE water_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,amount_ml INTEGER NOT NULL,day TEXT NOT NULL,created TEXT NOT NULL)');
+    await d.execute('CREATE TABLE weight_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,weight_kg REAL NOT NULL,day TEXT NOT NULL,created TEXT NOT NULL)');
   }
 
   static String dateKey(DateTime d) =>
@@ -82,6 +87,24 @@ class Store {
       await txn.delete('habits', where: 'id=?', whereArgs: [id]);
     });
   }
+
+  static Future<void> addWater(int amountMl) async {
+    if (amountMl < 50 || amountMl > 2000) throw ArgumentError('Choose a sensible water amount.');
+    await (await db).insert('water_logs', {'amount_ml': amountMl, 'day': day, 'created': DateTime.now().toIso8601String()});
+  }
+
+  static Future<int> waterToday() async {
+    final rows = await (await db).rawQuery('SELECT COALESCE(SUM(amount_ml),0) AS total FROM water_logs WHERE day=?', [day]);
+    return (rows.first['total'] as num).toInt();
+  }
+
+  static Future<void> logWeight(double kg) async {
+    if (!kg.isFinite || kg < 20 || kg > 500) throw ArgumentError('Enter a valid weight in kilograms.');
+    await (await db).insert('weight_logs', {'weight_kg': kg, 'day': day, 'created': DateTime.now().toIso8601String()});
+  }
+
+  static Future<List<Map<String, Object?>>> weightHistory() async =>
+      (await (await db).query('weight_logs', orderBy: 'id DESC', limit: 30));
 
   static Future<void> log(String table, String name) async {
     if (!['meals', 'workouts'].contains(table)) throw ArgumentError('Unsupported log');
@@ -194,7 +217,7 @@ class Store {
     return {'done': done, 'totalHabits': allHabits.length, 'spent': financeData['spent'] as double, 'budget': financeData['budget'] as double};
   }
 
-  static const _backupTables = ['habits', 'habit_logs', 'expenses', 'settings', 'workouts', 'meals', 'goals'];
+  static const _backupTables = ['habits', 'habit_logs', 'expenses', 'settings', 'workouts', 'meals', 'goals', 'water_logs', 'weight_logs'];
 
   static Future<String> createBackup() async {
     final database = await db;
@@ -204,7 +227,7 @@ class Store {
     }
     return const JsonEncoder.withIndent('  ').convert({
       'format': 'elora-backup',
-      'version': 2,
+      'version': 3,
       'createdAt': DateTime.now().toUtc().toIso8601String(),
       'data': data,
     });
@@ -212,7 +235,7 @@ class Store {
 
   static Future<void> restoreBackup(String raw) async {
     final decoded = jsonDecode(raw);
-    if (decoded is! Map || decoded['format'] != 'elora-backup' || ![1, 2].contains(decoded['version'])) {
+    if (decoded is! Map || decoded['format'] != 'elora-backup' || ![1, 2, 3].contains(decoded['version'])) {
       throw const FormatException('This is not a supported ELORA backup.');
     }
     final data = decoded['data'];
@@ -220,8 +243,11 @@ class Store {
     for (final table in ['habits', 'expenses', 'settings', 'workouts', 'meals', 'goals']) {
       if (data[table] is! List) throw FormatException('Backup is missing $table data.');
     }
-    if (decoded['version'] == 2 && data['habit_logs'] is! List) {
+    if (decoded['version'] >= 2 && data['habit_logs'] is! List) {
       throw const FormatException('Backup habit history is missing.');
+    }
+    if (decoded['version'] >= 3 && (data['water_logs'] is! List || data['weight_logs'] is! List)) {
+      throw const FormatException('Backup wellbeing history is missing.');
     }
     for (final value in data.values) {
       if (value is List && value.any((row) => row is! Map)) throw const FormatException('Backup contains an invalid data row.');
