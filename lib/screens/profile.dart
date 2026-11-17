@@ -57,7 +57,7 @@ class _ProfileState extends State<Profile> {
           controller: controller,
           autofocus: true,
           obscureText: secret ?? false,
-          decoration: InputDecoration(hintText: secret ? 'At least 10 characters' : 'Enter details'),
+          decoration: InputDecoration(hintText: (secret ?? false) ? 'At least 10 characters' : 'Enter details'),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
@@ -196,7 +196,7 @@ class _ProfileState extends State<Profile> {
               const Text('Fitness experience'),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
-                value: _fitnessLevel,
+                initialValue: _fitnessLevel,
                 items: const ['Beginner', 'Intermediate', 'Experienced'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
                 onChanged: (v) { if (v != null) setState(() => _fitnessLevel = v); },
               ),
@@ -204,7 +204,7 @@ class _ProfileState extends State<Profile> {
               const Text('Food preference'),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
-                value: _foodPreference,
+                initialValue: _foodPreference,
                 items: const ['Flexible', 'Vegetarian', 'Non-vegetarian', 'Eggetarian'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
                 onChanged: (v) { if (v != null) setState(() => _foodPreference = v); },
               ),
