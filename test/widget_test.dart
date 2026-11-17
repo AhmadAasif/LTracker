@@ -1,4 +1,5 @@
 import 'package:elora/main.dart';
+import 'package:elora/data/store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -28,5 +29,23 @@ void main() {
     expect(find.text('Your space'), findsOneWidget);
     expect(find.text('Personal goals'), findsOneWidget);
     expect(find.text('Your data'), findsOneWidget);
+  });
+  test('habit completion history and backup restore work', () async {
+    const habitName = 'CI habit history check';
+    await Store.addHabit(habitName);
+    final habit = (await Store.habits()).firstWhere((row) => row['name'] == habitName);
+    final id = habit['id'] as int;
+    await Store.toggle(id);
+
+    final stats = await Store.progressStats();
+    final counts = stats['habits'] as List<int>;
+    expect(counts.last, greaterThanOrEqualTo(1));
+
+    final backup = await Store.createBackup();
+    await Store.delete(id);
+    expect((await Store.habits()).any((row) => row['name'] == habitName), isFalse);
+    await Store.restoreBackup(backup);
+    expect((await Store.habits()).any((row) => row['name'] == habitName), isTrue);
+    expect(await Store.habitStreak(id), 1);
   });
 }
