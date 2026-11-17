@@ -1,32 +1,38 @@
 # ELORA
 **Your Personal Life Intelligence.**
 
-ELORA is a friendly, premium-dark, local-first Android life companion. It is designed to keep its core features useful without internet or paid services.
+ELORA is an Android-first, offline-first personal life companion built with Flutter. Its core features use local SQLite storage and do not require an account, paid API, subscription, ads, or an internet connection.
 
-## Included
-- Dashboard with a daily overview
-- Daily habit tracking with SQLite persistence
-- Home workout ideas and completion history
-- Vegetarian and non-vegetarian meal ideas and a local food log
-- Expense tracking, monthly budget and remaining-budget summary
-- Built-in offline assistant for basic questions about spending, habits, fitness and food
-- Dark midnight/ocean/pearl visual identity
+## Current features
+- Daily habit tracking with add, complete, and delete.
+- Home workout ideas and a local workout history.
+- Vegetarian and non-vegetarian meal ideas with a local food log.
+- Expense tracking, categories, monthly budget, and remaining-budget overview.
+- Offline companion responses for habits, fitness, meals, and spending.
+- Dark navy / ocean-blue interface with six sections.
 
-## Privacy and cost
-No API keys, cloud account, subscriptions, ads or network calls are required. Personal entries are stored in an on-device SQLite database. The assistant is a deterministic local rules engine, not a generative AI model. No medical advice, calorie prescriptions or automatic financial actions are provided.
+## Run locally
+1. Install the stable Flutter SDK and Android Studio.
+2. Clone this repository.
+3. Run `flutter create --platforms=android --project-name elora --org com.elora .` if Android platform scaffolding or the Gradle wrapper is missing.
+4. Run `flutter pub get`.
+5. Run `flutter run` with an Android device or emulator connected.
 
-## Run
-Requires Flutter and Dart 3.3+ plus Android Studio/Android SDK.
-```sh
-flutter pub get
-flutter analyze
-flutter test
-flutter run
-```
-If Android platform files are not present, generate them from the project root with:
-```sh
-flutter create --platforms=android .
-```
+## Automated checks and APK
+GitHub Actions runs Flutter analysis and widget tests on pushes and pull requests. A successful run also builds a release APK and uploads it as the **elora-android-apk** workflow artifact. Open the Actions tab, select the latest successful run, and download its artifact.
 
-## Not yet included
-Scheduled reminders, encrypted export/import, user profile and goals, progress charts, adaptive workout/nutrition plans, and optional on-device LLM integration are future milestones. Android 16 / ColorOS testing and a release APK build must still be performed on a real device. This source commit does not claim those tests have passed.
+The APK is an unsigned release build suitable for direct testing. A production Play Store release still needs a privately managed signing key and store preparation.
+
+## Privacy and limitations
+- Personal records are stored locally in the app's SQLite database.
+- ELORA's current assistant is rule-based and works offline; it is not a cloud LLM.
+- Data can be lost if the app is uninstalled because backup/restore is not implemented yet.
+- No bank account is connected and no financial action is automated.
+- Workout and meal suggestions are general wellness ideas, not medical advice.
+
+## Project structure
+- `lib/main.dart`: Flutter UI and app navigation.
+- `lib/data/store.dart`: SQLite persistence and data operations.
+- `test/`: widget tests.
+- `.github/workflows/flutter.yml`: CI checks and Android APK build.
+- `docs/ROADMAP.md`: remaining development and device-validation work.
