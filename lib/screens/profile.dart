@@ -75,8 +75,14 @@ class _ProfileState extends State<Profile> {
   }
 
   Future<void> _exportBackup() async {
-    final password = await _ask('Protect your backup', secret: true);
+    final password = await _ask('Choose a backup password', secret: true);
     if (password == null) return;
+    final confirmation = await _ask('Confirm backup password', secret: true);
+    if (confirmation == null) return;
+    if (password != confirmation) {
+      await _message('The passwords do not match. No backup was created.');
+      return;
+    }
     setState(() => _busy = true);
     try {
       await SecureBackup.exportToFile(password);
